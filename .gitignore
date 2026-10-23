@@ -1,0 +1,7 @@
+build/
+.cache/
+.tools/
+backups/
+*.log
+*.pdb
+__pycache__/
