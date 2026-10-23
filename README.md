@@ -12,10 +12,16 @@ A single-player ASI mod for the Windows Steam version of Final Fantasy Resonance
 | F4 | Auto-Battle | Automatically use basic Attack for ready party members |
 | F5 | HUD Hide/Show | Toggle the entire game HUD and booster icons |
 
+For best results with Turbo Mode, set the game's own battle speed to 1x.
+
 Turbo starts at 1x. Other preferences are saved. Detected cutscenes run at 1x.
 Only active icons appear, in fixed slots. Icons hide on title/pause menus,
 battle results and detected cutscenes. Standard, ultrawide and exclusive
 fullscreen displays are supported.
+
+## Demo
+
+[Watch the F1–F5 showcase (65 seconds)](https://github.com/Darjjj/resonance-game-boosters/releases/download/v1.0.1/Resonance-Game-Boosters-demo.mp4). Includes both uninterrupted Auto-Battle fights.
 
 ## Download and install
 

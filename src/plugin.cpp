@@ -276,7 +276,7 @@ static DWORD WINAPI start(void*) {
     wchar_t logpath[MAX_PATH];
     std::swprintf(logpath, MAX_PATH, L"%lsresonance_boosters.log", path);
     logfile = _wfopen(logpath, L"w");
-    log("Resonance Game Boosters 1.0.0 starting; F1 Turbo Mode; F2 Supercharge; F3 Encounter Rate; F4 Auto-Battle; F5 HUD Hide/Show.");
+    log("Resonance Game Boosters 1.0.1 starting; F1 Turbo Mode; F2 Supercharge; F3 Encounter Rate; F4 Auto-Battle; F5 HUD Hide/Show.");
     if (!GetPrivateProfileIntW(L"Speed", L"Enabled", 1, config_path)) { log("Disabled in config."); return 0; }
     if (!known_executable()) { log("Unsupported executable SHA256. No hook or game writes installed."); return 0; }
     image = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));

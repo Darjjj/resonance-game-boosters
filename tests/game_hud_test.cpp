@@ -42,6 +42,7 @@ int main() {
             case 201: return std::wstring(L"Function");
             case 202: return std::wstring(L"SetRenderOpacity");
             case 203: return std::wstring(L"IsInViewport");
+            case 777: return std::wstring(L"WBP_BattleSequencerLay_C");
             default: return std::wstring(L"None");
         }
     };
@@ -59,6 +60,16 @@ int main() {
     put(at[6]+0x1A0,at[3]); put(at[3]+0x3E0,(unsigned char)1);
     assert(screen_guard::blocked());
     put(at[3]+0x3E0,(unsigned char)0); assert(!screen_guard::blocked());
+    // The retained battle sequencer sits in SystemFront2 after combat. It is
+    // gameplay/cinematic infrastructure, not an open pause menu.
+    put(at[2]+0x18,std::uint64_t{777}); put(at[3]+0x10,at[2]);
+    put(at[1]+0x5D8,std::uintptr_t{0}); put(at[1]+0x5C8,at[6]);
+    put(at[3]+0x3E0,(unsigned char)1);
+    assert(!screen_guard::blocked());
+    // A real menu on another system stack must still block independently.
+    put(at[1]+0x5D8,at[5]); put(at[5]+0x1A0,at[4]); put(at[4]+0x3E0,(unsigned char)1);
+    assert(screen_guard::blocked());
+    put(at[4]+0x3E0,(unsigned char)0); assert(!screen_guard::blocked());
     game_hud::invoke=fake_call;
 #ifdef PROFILE_SCREEN
     measured_reads=0;

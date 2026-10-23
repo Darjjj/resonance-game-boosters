@@ -67,6 +67,20 @@ static Kind classify(std::uintptr_t pointer) {
     }
     return Kind::Other;
 }
+// The battle sequencer is retained in SystemFront2 after combat. Its active
+// flag is not evidence of a pause menu; cutscene detection handles its scenes.
+static bool battle_sequencer(std::uintptr_t pointer) {
+    Object object{}; std::uint32_t serial=0;
+    if(!live(pointer,object,serial)) return false;
+    auto klass=object.klass;
+    for(int depth=0;klass && depth<32;++depth) {
+        Object cls{};
+        if(!live(klass,cls,serial,true)) return false;
+        if(object_name(cls.name)==L"WBP_BattleSequencerLay_C") return true;
+        if(!read(klass+0x40,klass)) break;
+    }
+    return false;
+}
 static void add_view(battle_discovery::Snapshot& out,std::uintptr_t view) {
     for(std::size_t i=0;i<out.view_count;++i) if(out.views[i]==view) return;
     if(out.view_count==out.views.size()) {
@@ -157,7 +171,7 @@ static bool blocked(int budget=2048) {
                 unsigned char active=0;
                 if(read(*it+offset,stack) && live(stack,object,serial) &&
                     read(stack+0x1A0,child) && live(child,object,serial) &&
-                    read(child+0x3E0,active) && active==1) hidden=true;
+                    read(child+0x3E0,active) && active==1 && !battle_sequencer(child)) hidden=true;
             }
         } else if(kind==Kind::HudFunction) {
             Object fn{},owner{};
