@@ -93,6 +93,7 @@ generated game SDK, ASI loader, saves or personal logs are included.
 
 Concept, direction and playtesting: FxDarj. Developed with assistance from
 OpenAI Codex, including generated badge artwork. Loader: ThirteenAG.
+Auto-Complete suggestion: StarsongCD.
 Layout reference: [PolarWizard's Resonance fix](https://github.com/PolarWizard/final-fantasy-resonance-fix),
 commit `0f5bc2c4bab2b1680c59d8d1c2135253ae14c0df`.
 

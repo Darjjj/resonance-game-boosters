@@ -1,18 +1,12 @@
 # Changelog
 
-## 1.1.2 (unreleased)
+## 1.1.2
 
-- Reduce Auto+ result confirms from 500ms to 100ms. Normal result handling and input guards remain in place.
-
-## 1.1.1 (unreleased)
-
-- Use the shipped Blueprint result screen's normal confirm handler; its native base page fields are unused.
-
-## 1.1.0 (unreleased)
-
-- F4 cycles Off, Auto-Battle, Auto-Battle and Complete.
-- Complete mode advances ready battle-result pages and uses an Auto+ badge.
-- Existing Auto-Battle settings are preserved. Local build awaits in-game verification.
+- F4 now cycles Off, Auto-Battle, Auto-Battle and Complete.
+- Complete mode advances battle results automatically, with an Auto+ icon and 100ms confirm interval.
+- Uses the normal result-screen handler and pauses for menus, cutscenes and loss of focus.
+- Existing Auto-Battle preferences are preserved.
+- Auto-Complete suggestion: StarsongCD.
 
 ## 1.0.1
 
