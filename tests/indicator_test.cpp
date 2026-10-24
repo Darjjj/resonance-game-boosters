@@ -74,6 +74,9 @@ int main() {
     assert(status.selected == 4 && status.encounters == 2 && status.boost && status.auto_attack);
     assert(indicator_allowed());
     auto appearance=indicator_visual_state();
+    publish_status(4,4,SpeedMode::Battle,2,true,2);
+    assert(indicator_status().auto_attack==2 && indicator_visual_state()!=appearance);
+    publish_status(4,4,SpeedMode::Battle,2,true,1);
     publish_status(4,0.25f,SpeedMode::Battle,2,true,true);
     assert(indicator_visual_state()==appearance); // Battle hit-stop does not change badge artwork.
     publish_status(4,4,SpeedMode::Battle,2,true,false);
@@ -89,7 +92,7 @@ int main() {
     }
     for (int state = 0; state < 3; ++state) {
         publish_status(state == 0 ? 1 : state == 1 ? 2 : 4, 1, SpeedMode::Gameplay,
-            state, state == 2, state == 2);
+            state, state == 2, state == 2 ? 2 : 0);
         draw_indicator(dc, {0, 0, indicator_width, indicator_height});
         GdiFlush();
         auto bytes = static_cast<unsigned char*>(pixels);

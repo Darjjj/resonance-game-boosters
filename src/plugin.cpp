@@ -27,7 +27,7 @@ static SpeedPolicy policy;
 static SpeedKeys keys;
 static std::atomic<int> encounter_mode{0};
 static std::atomic<bool> limit_enabled{false};
-static std::atomic<bool> auto_attack_enabled{false};
+static std::atomic<int> auto_attack_enabled{0};
 
 static void log(const char* text) {
     if (logfile) { std::fprintf(logfile, "%llu %s\n", GetTickCount64(), text); std::fflush(logfile); }
@@ -73,6 +73,7 @@ static bool (*query_cutscene)(bool&) = reflected_cutscene;
 #include "auto_attack.hpp"
 #include "game_hud.hpp"
 #include "screen_visibility.hpp"
+#include "auto_complete.hpp"
 #include "overlay.hpp"
 #include "native_indicator.hpp"
 static BattleSpeedPolicy battle_policy;
@@ -124,9 +125,9 @@ static void update(UINT key = 0) {
     if (focused && key) {
         int mode = encounter_mode.load();
         bool burst = limit_enabled.load();
-        bool automatic = auto_attack_enabled.load(), visible = show_indicator.load();
+        int automatic = auto_attack_enabled.load(); bool visible = show_indicator.load();
         keys.apply(key, policy, mode, burst, automatic, visible);
-        if (automatic!=auto_attack_enabled.load()) log(automatic ? "F4 Auto-Battle: ON." : "F4 Auto-Battle: OFF.");
+        if (automatic!=auto_attack_enabled.load()) log(automatic==2 ? "F4 Auto-Battle and Complete." : automatic==1 ? "F4 Auto-Battle." : "F4 Auto-Battle: OFF.");
         if (visible!=show_indicator.load()) log(visible ? "F5 HUD Hide/Show: SHOWN (game and mod)." : "F5 HUD Hide/Show: HIDDEN (game and mod).");
         auto_attack_enabled.store(automatic); show_indicator.store(visible);
         if (burst != limit_enabled.load()) log(burst ? "F2 Supercharge: ON (HP/MP/Limit Burst)." : "F2 Supercharge: OFF.");
@@ -148,6 +149,7 @@ static void update(UINT key = 0) {
     { performance::Scope sample(performance::World); valid_timing=timing(t); }
     if (!valid_timing) {
         auto_attack::reset();
+        auto_complete::reset();
         publish_status(policy.multiplier(), 1, SpeedMode::Unavailable, encounter_mode.load(), limit_enabled.load(), auto_attack_enabled.load());
         return;
     }
@@ -158,6 +160,7 @@ static void update(UINT key = 0) {
     update_encounters(t.world, encounter_mode.load());
     if (auto_attack_enabled.load()) {
         performance::Scope sample(performance::Prepare); prepare_auto_attack(t.world);
+        if(auto_attack_enabled.load()==2) prepare_auto_complete();
     }
     bool cinematic = false;
     bool known=false;
@@ -186,6 +189,9 @@ static void update(UINT key = 0) {
         performance::Scope sample(performance::AutoBattle); run_auto_attack(t.world);
     }
     else auto_attack::reset();
+    if(focused && known && !cinematic)
+        run_auto_complete(t.world,auto_attack_enabled.load(),GetTickCount64());
+    else auto_complete::reset();
     auto result = policy.update(t.identity, t.value, accelerate && !battle.active);
     if (!apply_speed(t.address, t.value, result, "exploration")) {
         policy = SpeedPolicy{}; return;
@@ -276,7 +282,7 @@ static DWORD WINAPI start(void*) {
     wchar_t logpath[MAX_PATH];
     std::swprintf(logpath, MAX_PATH, L"%lsresonance_boosters.log", path);
     logfile = _wfopen(logpath, L"w");
-    log("Resonance Game Boosters 1.0.1 starting; F1 Turbo Mode; F2 Supercharge; F3 Encounter Rate; F4 Auto-Battle; F5 HUD Hide/Show.");
+    log("Resonance Game Boosters 1.1.0 starting; F1 Turbo Mode; F2 Supercharge; F3 Encounter Rate; F4 Off/Auto-Battle/Auto-Battle and Complete; F5 HUD Hide/Show.");
     if (!GetPrivateProfileIntW(L"Speed", L"Enabled", 1, config_path)) { log("Disabled in config."); return 0; }
     if (!known_executable()) { log("Unsupported executable SHA256. No hook or game writes installed."); return 0; }
     image = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
@@ -285,7 +291,8 @@ static DWORD WINAPI start(void*) {
     keys.encounter = GetPrivateProfileIntW(L"Speed", L"EncounterToggleKey", VK_F3, config_path);
     keys.automatic = GetPrivateProfileIntW(L"Speed", L"AutoAttackToggleKey", VK_F4, config_path);
     keys.hud = GetPrivateProfileIntW(L"Speed", L"HudToggleKey", VK_F5, config_path);
-    auto_attack_enabled = GetPrivateProfileIntW(L"Speed", L"AutoAttackEnabled", 0, config_path) != 0;
+    int automatic_mode = GetPrivateProfileIntW(L"Speed", L"AutoAttackEnabled", 0, config_path);
+    auto_attack_enabled = automatic_mode>=0 && automatic_mode<=2 ? automatic_mode : 0;
     keys.limit = GetPrivateProfileIntW(L"Speed", L"BattleBoostToggleKey", VK_F2, config_path);
     limit_enabled = GetPrivateProfileIntW(L"Speed", L"BattleBoostEnabled", 0, config_path) != 0;
     int mode = GetPrivateProfileIntW(L"Speed", L"EncounterMode", 0, config_path);
@@ -303,7 +310,7 @@ static DWORD WINAPI start(void*) {
     timer_id = reinterpret_cast<UINT_PTR>(module);
     int saved_encounters = encounter_mode.load();
     bool saved_limit = limit_enabled.load();
-    bool saved_auto = auto_attack_enabled.load(), saved_visible = show_indicator.load();
+    int saved_auto = auto_attack_enabled.load(); bool saved_visible = show_indicator.load();
     publish_status(1, 1, SpeedMode::Unavailable, encounter_mode.load(), limit_enabled.load(), auto_attack_enabled.load());
     // Unreal may replace its startup window. Follow destruction/recreation
     // instead of leaving the timer attached to the first temporary HWND.
@@ -325,9 +332,9 @@ static DWORD WINAPI start(void*) {
                 log("Supercharge active for this session; saving preference failed.");
             saved_limit = burst;
         }
-        bool automatic = auto_attack_enabled.load(), visible = show_indicator.load();
+        int automatic = auto_attack_enabled.load(); bool visible = show_indicator.load();
         if (automatic != saved_auto) {
-            WritePrivateProfileStringW(L"Speed", L"AutoAttackEnabled", automatic ? L"1" : L"0", config_path);
+            WritePrivateProfileStringW(L"Speed", L"AutoAttackEnabled", automatic==2 ? L"2" : automatic==1 ? L"1" : L"0", config_path);
             saved_auto = automatic;
         }
         if (visible != saved_visible) {

@@ -9,7 +9,7 @@ static std::atomic<bool> hud_visible{true};
 static std::atomic<bool> native_indicator_active{false};
 static std::atomic<HWND> indicator{nullptr};
 static constexpr int indicator_width = booster_icons::tile*4, indicator_height = booster_icons::size+4;
-static std::uint64_t indicator_visual_state() { return hud_state.load() & 0x0F000007ULL; }
+static std::uint64_t indicator_visual_state() { return hud_state.load() & 0x1F000007ULL; }
 
 // A centered 16:9 rectangle is inside both the stock constrained picture and
 // an expanded ultrawide picture. No dependency on another plugin's presence.
@@ -24,7 +24,7 @@ static POINT indicator_position(int width, int height, int offset_x, int offset_
         static_cast<LONG>(std::lround(std::fmin(bottom,std::fmax(top,top+offset_y))))};
 }
 
-static void publish_status(int selected, float effective, SpeedMode mode, int encounters, bool boost, bool auto_attack) {
+static void publish_status(int selected, float effective, SpeedMode mode, int encounters, bool boost, int auto_attack) {
     int rate = std::isfinite(effective) ? static_cast<int>(effective * 100 + 0.5f) : 100;
     if (rate < 0) rate = 0;
     if (rate > 65535) rate = 65535;
@@ -36,7 +36,7 @@ static void publish_status(int selected, float effective, SpeedMode mode, int en
 static IndicatorStatus indicator_status() {
     auto state = hud_state.load();
     return {static_cast<int>(state & 7), 
-        static_cast<int>((state >> 24) & 3), bool((state >> 26) & 1), bool((state >> 27) & 1)};
+        static_cast<int>((state >> 24) & 3), bool((state >> 26) & 1), static_cast<int>((state >> 27) & 3)};
 }
 static bool indicator_allowed() {
     auto mode = static_cast<SpeedMode>((hud_state.load() >> 19) & 15);
@@ -52,7 +52,7 @@ static void draw_indicator(HDC dc, RECT rect) {
     if (state.selected>1) booster_icons::draw(dc,0,0,state.selected);
     if (state.boost) booster_icons::draw(dc,1,1,1);
     if (state.encounters!=0) booster_icons::draw(dc,2,2,state.encounters);
-    if (state.auto_attack) booster_icons::draw(dc,3,3,1);
+    if (state.auto_attack) booster_icons::draw(dc,3,3,state.auto_attack);
 }
 static LRESULT CALLBACK indicator_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     if (msg == WM_NCHITTEST) return HTTRANSPARENT;

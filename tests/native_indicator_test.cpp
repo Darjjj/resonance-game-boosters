@@ -75,15 +75,15 @@ int main() {
     assert(!update(at[1],{4,2,true,true},true,1920,1080,{20,240}));
     assert(calls==0); // Missing metadata never creates half a native HUD.
     ready=[] { return true; }; image_class=at[4]; canvas_class=at[5];
-    for(int frame=0;frame<5;++frame) {
+    for(int frame=0;frame<6;++frame) {
         assert(!update(at[1],{4,2,true,true},true,1920,1080,{20,240}));
         assert(visibility[canvas.pointer]==1); // No partially initialized HUD.
     }
     assert(update(at[1],{4,2,true,true},true,1920,1080,{20,240}));
-    assert(imports==6 && built==6 && visibility[canvas.pointer]==3);
-    bool expected[]{false,true,true,false,true,true};
-    int cell[]{0,0,1,2,2,3};
-    for(int i=0;i<6;++i) {
+    assert(imports==7 && built==7 && visibility[canvas.pointer]==3);
+    bool expected[]{false,true,true,false,true,true,false};
+    int cell[]{0,0,1,2,2,3,3};
+    for(int i=0;i<7;++i) {
         assert(visibility[pictures[i].pointer]==(expected[i] ? 3 : 1));
         assert(std::fabs(positions[slots[i].pointer].x-(22+54*cell[i])/1.5)<0.0001);
         assert(std::fabs(positions[slots[i].pointer].y-242/1.5)<0.0001);
@@ -91,21 +91,23 @@ int main() {
     }
     int before=calls;
     assert(update(at[1],{4,2,true,true},true,1920,1080,{20,240}));
-    assert(calls==before && imports==6); // No per-frame texture creation or UI mutation.
+    assert(calls==before && imports==7); // No per-frame texture creation or UI mutation.
+    assert(update(at[1],{4,2,true,2},true,1920,1080,{20,240}));
+    assert(visibility[pictures[5].pointer]==1 && visibility[pictures[6].pointer]==3);
     assert(update(at[1],{4,2,true,true},false,1920,1080,{20,240}));
     for(const auto& picture:pictures) assert(visibility[picture.pointer]==1);
     assert(visibility[canvas.pointer]==1); // Pause/menu/cutscene/F5 all hide native icons.
     assert(update(at[1],{2,1,false,false},true,1920,1080,{20,240}));
     assert(visibility[pictures[0].pointer]==3 && visibility[pictures[1].pointer]==1);
     assert(visibility[pictures[3].pointer]==3 && visibility[pictures[4].pointer]==1);
-    assert(imports==6); // Cycling reuses the same textures.
+    assert(imports==7); // Cycling reuses the same textures.
     assert(update(at[1],{2,1,false,false},true,3440,1440,{460,240}));
     assert(std::fabs(positions[slots[0].pointer].x-462/1.5)<0.0001);
     fail_geometry=true; last_dpi_check=0;
     assert(!update(at[1],{2,1,false,false},true,3440,1440,{460,240}));
     assert(!canvas.pointer && failed && removals==1); // Failed refresh removes the native layer before fallback.
     assert(!update(at[1],{2,1,false,false},true,3440,1440,{460,240}));
-    assert(imports==6); // Do not repeatedly rebuild a failing root.
+    assert(imports==7); // Do not repeatedly rebuild a failing root.
     put(chunk+1*0x18,std::uintptr_t{0});
     assert(!update(at[1],{2,1,false,false},true,3440,1440,{460,240}));
     assert(!root.pointer); // Freed root cannot receive native calls.

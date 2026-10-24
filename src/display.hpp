@@ -4,5 +4,6 @@ enum class SpeedMode { Gameplay, Battle, Cutscene, Unavailable, Background, Othe
 struct IndicatorStatus {
     int selected;
     int encounters;
-    bool boost, auto_attack;
+    bool boost;
+    int auto_attack;
 };

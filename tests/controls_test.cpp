@@ -4,7 +4,8 @@ int main() {
     SpeedKeys keys;
     SpeedPolicy speed;
     int mode = 0;
-    bool boost = false, automatic = false, visible = true;
+    bool boost = false, visible = true;
+    int automatic = 0;
     assert(keys.valid());
     for (unsigned key = 0x70; key <= 0x74; ++key) assert(keys.accepts(key));
     assert(!keys.accepts(0x75));
@@ -18,7 +19,8 @@ int main() {
     press(0x72); assert(mode == 2);
     press(0x72); assert(mode == 0);
     press(0x73); assert(automatic && !boost && visible);
-    press(0x73); assert(!automatic);
+    press(0x73); assert(automatic == 2);
+    press(0x73); assert(automatic == 0);
     press(0x74); assert(!visible && !automatic);
     press(0x74); assert(visible);
     keys.hud = keys.automatic; assert(!keys.valid());

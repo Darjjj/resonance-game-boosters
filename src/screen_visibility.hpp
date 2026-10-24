@@ -153,7 +153,7 @@ static bool blocked(int budget=2048) {
         if (!exists) candidates.push_back(pointer);
     }
     if (cursor>=count) scanned=true;
-    bool hidden=false;
+    bool hidden=false,other_hidden=false;
     battle_discovery::Snapshot battle_objects;
     std::uintptr_t current_world=0;
     read(image+GWorld,current_world);
@@ -171,7 +171,10 @@ static bool blocked(int budget=2048) {
                 unsigned char active=0;
                 if(read(*it+offset,stack) && live(stack,object,serial) &&
                     read(stack+0x1A0,child) && live(child,object,serial) &&
-                    read(child+0x3E0,active) && active==1 && !battle_sequencer(child)) hidden=true;
+                    read(child+0x3E0,active) && active==1 && !battle_sequencer(child)) {
+                    hidden=true;
+                    if(classify(child)!=Kind::Results) other_hidden=true;
+                }
             }
         } else if(kind==Kind::HudFunction) {
             Object fn{},owner{};
@@ -214,14 +217,20 @@ static bool blocked(int budget=2048) {
                 read(world+0x228,instance) && live(instance,instance_object,serial) &&
                 live(*it,manager_object,serial) && manager_object.outer==instance &&
                 read(*it+0x38,task) && classify(task)==Kind::TitleTask &&
-                live(task,task_object,serial) && task_object.outer==*it) { hidden=true; title_active=true; }
+                live(task,task_object,serial) && task_object.outer==*it) { hidden=true; title_active=true; other_hidden=true; }
         } else {
             // CommonActivatableWidget.bIsActive in the pinned game build.
             unsigned char active=0;
-            if(read(*it+0x3E0,active) && active==1) hidden=true;
+            if(kind==Kind::Results && battle_objects.result_count<battle_objects.results.size())
+                battle_objects.results[battle_objects.result_count++]=*it;
+            if(read(*it+0x3E0,active) && active==1) {
+                hidden=true;
+                if(kind!=Kind::Results) other_hidden=true;
+            }
         }
         ++it;
     }
+    battle_objects.result_blocked=other_hidden || !scanned;
     battle_discovery::publish(battle_objects);
     return hidden || !scanned;
 }

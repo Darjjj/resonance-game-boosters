@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 (unreleased)
+
+- F4 cycles Off, Auto-Battle, Auto-Battle and Complete.
+- Complete mode advances ready battle-result pages and uses an Auto+ badge.
+- Existing Auto-Battle settings are preserved. Local build awaits in-game verification.
+
 ## 1.0.1
 
 - Fixed booster icons staying hidden after battles: a retained battle-sequencer widget is no longer treated as a pause menu.

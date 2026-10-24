@@ -47,7 +47,7 @@ struct BrushArgs { std::uintptr_t texture=0; bool match=false; unsigned char pad
 struct ImportArgs { std::uintptr_t world=0,data=0; int count=0,capacity=0; std::uintptr_t result=0; };
 static_assert(sizeof(SpawnArgs)==0x18 && sizeof(ImportArgs)==0x20 && sizeof(BrushArgs)==0x10 && sizeof(Vec)==0x10);
 static Ref root,canvas,host;
-static std::array<Ref,6> pictures,slots;
+static std::array<Ref,7> pictures,slots;
 static int built=0,last_width=0,last_height=0;
 static float last_dpi=0;
 static bool failed=false;
@@ -123,7 +123,7 @@ static bool create_canvas(std::uintptr_t owner) {
     return canvas.set(spawn.result);
 }
 static bool create_picture(int index) {
-    static constexpr int kind[]{0,0,1,2,2,3},mode[]{2,4,1,1,2,1};
+    static constexpr int kind[]{0,0,1,2,2,3,3},mode[]{2,4,1,1,2,1,2};
     HBITMAP badge=booster_icons::make(kind[index],mode[index]);
     if(!badge) return false;
     HDC dc=CreateCompatibleDC(nullptr);
@@ -160,11 +160,11 @@ static bool update(std::uintptr_t owner,const IndicatorStatus& state,bool allowe
     }
     if(failed) return false;
     if(!canvas.valid()) { clear(); return false; }
-    if(built<6) {
+    if(built<7) {
         if(!create_picture(built)) { clear(); root.set(owner); failed=true;
             log("Native booster HUD initialization failed; window overlay retained."); return false; }
         ++built;
-        if(built<6) return false; // Limit initial texture/UI creation to one badge per callback.
+        if(built<7) return false; // Limit initial texture/UI creation to one badge per callback.
     }
     // Convert viewport pixels through the actual parent geometry: the root
     // ScaleBox applies additional scale/offset beyond the viewport DPI curve.
@@ -189,13 +189,13 @@ static bool update(std::uintptr_t owner,const IndicatorStatus& state,bool allowe
         last_dpi_check=GetTickCount64();
     }
     auto appearance=std::uint64_t(state.selected) | (std::uint64_t(state.encounters)<<8) |
-        (std::uint64_t(state.boost)<<16) | (std::uint64_t(state.auto_attack)<<17) | (std::uint64_t(allowed)<<18);
+        (std::uint64_t(state.boost)<<16) | (std::uint64_t(state.auto_attack)<<17) | (std::uint64_t(allowed)<<19);
     if(layout || appearance!=last_state) {
         bool visible[]{allowed && state.selected==2,allowed && state.selected==4,
             allowed && state.boost,allowed && state.encounters==1,
-            allowed && state.encounters==2,allowed && state.auto_attack};
-        static constexpr int cell[]{0,0,1,2,2,3};
-        for(int i=0;i<6;++i) {
+            allowed && state.encounters==2,allowed && state.auto_attack==1,allowed && state.auto_attack==2};
+        static constexpr int cell[]{0,0,1,2,2,3,3};
+        for(int i=0;i<7;++i) {
             if(!pictures[i].valid() || !slots[i].valid()) { clear(); return false; }
             if(layout) {
                 Vec position{origin.x+cell[i]*booster_icons::tile*step.x,origin.y};

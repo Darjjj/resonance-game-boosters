@@ -9,7 +9,7 @@ A single-player ASI mod for the Windows Steam version of Final Fantasy Resonance
 | F1 | Turbo Mode | Cycle 1x, 2x and 4x, including battles |
 | F2 | Supercharge | Refill party HP, MP and Limit Burst |
 | F3 | Encounter Rate | Default, no random encounters, double encounters |
-| F4 | Auto-Battle | Automatically use basic Attack for ready party members |
+| F4 | Auto-Battle | Cycle Off, Auto-Battle, Auto-Battle and Complete |
 | F5 | HUD Hide/Show | Toggle the entire game HUD and booster icons |
 
 For best results with Turbo Mode, set the game's own battle speed to 1x.
@@ -18,6 +18,8 @@ Turbo starts at 1x. Other preferences are saved. Detected cutscenes run at 1x.
 Only active icons appear, in fixed slots. Icons hide on title/pause menus,
 battle results and detected cutscenes. Standard, ultrawide and exclusive
 fullscreen displays are supported.
+
+Auto-Battle and Complete also advances ready battle-result pages. It shows a gold plus on the Auto icon. Ordinary Auto-Battle leaves results for manual confirmation.
 
 ## Demo
 

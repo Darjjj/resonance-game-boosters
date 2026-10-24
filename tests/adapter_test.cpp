@@ -138,11 +138,19 @@ int main() {
     prepare_auto_attack=[](std::uintptr_t) { ++preparations; };
     static int auto_calls=0;
     run_auto_attack=[](std::uintptr_t) { ++auto_calls; };
+    prepare_auto_complete=[] {};
+    static int completions=0;
+    run_auto_complete=[](std::uintptr_t,int mode,ULONGLONG) { if(mode==2) ++completions; };
     update(VK_F4); assert(auto_attack_enabled && auto_calls==1 && indicator_status().auto_attack);
     cinematic=true; update(); assert(auto_calls==1 && preparations==2);
     cinematic=false; test_foreground=nullptr; update(); assert(auto_calls==1);
     test_foreground=window;
-    update(VK_F4); assert(!auto_attack_enabled && auto_calls==1);
+    update(VK_F4); assert(auto_attack_enabled==2);
+    assert(auto_calls==2 && completions==1);
+    cinematic=true; update(); assert(completions==1);
+    cinematic=false; test_foreground=nullptr; update(); assert(completions==1);
+    test_foreground=window;
+    update(VK_F4); assert(!auto_attack_enabled);
     static int refills = 0;
     refill_limit_burst = [](std::uintptr_t) { ++refills; };
     update(VK_F2);
@@ -171,7 +179,9 @@ int main() {
     update(VK_F4);
     int before=preparations;
     update();
-    assert(preparations==before+1 && auto_calls==1); // Prepare during exploration; never submit an attack.
+    assert(preparations==before+1 && auto_calls==2); // Prepare during exploration; never submit an attack.
+    update(VK_F4);
+    assert(auto_attack_enabled==2);
     update(VK_F4);
     assert(read(sp + 0x3E0, t.value) && t.value == 4);
     select(1);
@@ -229,8 +239,9 @@ int main() {
     PostMessageW(window, WM_KEYDOWN, VK_F2, 0);
     pump(); assert(!limit_enabled);
     PostMessageW(window,WM_KEYDOWN,VK_F4,0); pump();
-    assert(auto_attack_enabled && indicator_status().auto_attack && auto_calls==1);
+    assert(auto_attack_enabled && indicator_status().auto_attack && auto_calls==2);
     PostMessageW(window,WM_KEYDOWN,VK_F4,1LL<<30); pump(); assert(auto_attack_enabled);
+    PostMessageW(window,WM_KEYDOWN,VK_F4,0); pump(); assert(auto_attack_enabled==2);
     PostMessageW(window,WM_KEYDOWN,VK_F4,0); pump(); assert(!auto_attack_enabled);
     static bool game_hud_visible=true;
     update_game_hud=[](bool visible) { game_hud_visible=visible; return true; };

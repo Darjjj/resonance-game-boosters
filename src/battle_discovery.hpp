@@ -24,6 +24,9 @@ struct Snapshot {
     std::array<std::uintptr_t,64> views{};
     std::array<std::uintptr_t,64> resources{};
     std::array<std::uintptr_t,8> hud_roots{};
+    std::array<std::uintptr_t,8> results{};
+    std::size_t result_count=0;
+    bool result_blocked=true;
     std::array<HudFunction,widget_api_count> hud_functions{};
     std::array<std::uintptr_t,2> widget_classes{}; // Image, CanvasPanel.
     std::size_t hud_root_count=0;

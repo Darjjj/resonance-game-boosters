@@ -56,10 +56,12 @@ int main() {
     assert(!screen_guard::blocked()); // Cached inactive screens must not hide gameplay.
     put(at[4]+0x3E0,(unsigned char)1);
     assert(screen_guard::blocked()); // Main menu.
+    assert(battle_discovery::latest.result_blocked);
     put(at[4]+0x3E0,(unsigned char)0);
     assert(!screen_guard::blocked());
     put(at[5]+0x3E0,(unsigned char)1);
     assert(screen_guard::blocked()); // Results, including subsequent pages.
+    assert(!battle_discovery::latest.result_blocked && battle_discovery::latest.result_count==1);
     put(at[5]+0x3E0,(unsigned char)0);
     assert(!screen_guard::blocked()); // Return to gameplay.
     put(at[11]+0x38,at[6]); assert(screen_guard::blocked()); // Main title task, no viewport-root widget.

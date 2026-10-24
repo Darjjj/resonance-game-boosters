@@ -38,6 +38,10 @@ if ($LASTEXITCODE) { throw 'Game HUD tests failed' }
 if ($LASTEXITCODE) { throw 'Auto Attack test compilation failed' }
 & .\build\auto_attack_test.exe
 if ($LASTEXITCODE) { throw 'Auto Attack tests failed' }
+& $zig c++ -std=c++17 -Wall -Wextra -Werror tests/auto_complete_test.cpp -luser32 -lgdi32 -lbcrypt -o build/auto_complete_test.exe
+if ($LASTEXITCODE) { throw 'Auto complete test compilation failed' }
+& .\build\auto_complete_test.exe
+if ($LASTEXITCODE) { throw 'Auto complete tests failed' }
 & $zig c++ -std=c++17 -Wall -Wextra -Werror tests/limit_burst_test.cpp -luser32 -lgdi32 -lbcrypt -o build/limit_burst_test.exe
 if ($LASTEXITCODE) { throw 'Limit Burst test compilation failed' }
 & .\build\limit_burst_test.exe

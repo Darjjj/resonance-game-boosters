@@ -13,11 +13,11 @@ struct SpeedKeys {
         }
         return true;
     }
-    void apply(unsigned key, SpeedPolicy& policy, int& mode, bool& boost, bool& automatic_enabled, bool& visible) const {
+    void apply(unsigned key, SpeedPolicy& policy, int& mode, bool& boost, int& automatic_enabled, bool& visible) const {
         if (key == cycle) policy.cycle();
         else if (key == limit) boost = !boost;
         else if (key == encounter) mode = (mode + 1) % 3;
-        else if (key == automatic) automatic_enabled = !automatic_enabled;
+        else if (key == automatic) automatic_enabled = (automatic_enabled + 1) % 3;
         else if (key == hud) visible = !visible;
     }
 };

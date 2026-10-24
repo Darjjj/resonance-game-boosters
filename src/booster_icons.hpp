@@ -47,11 +47,19 @@ static HBITMAP make(int kind,int mode) {
         SelectObject(high,old_font); SelectObject(high,old_high); SelectObject(low,old_low);
         DeleteObject(font); DeleteObject(large); DeleteDC(high); DeleteDC(low);
     }
+    if(kind==3 && mode==2) {
+        // A small gold + stays inside the existing ring; regular Auto is unchanged.
+        auto* output=static_cast<std::uint32_t*>(pixels);
+        for(int y=30;y<=38;++y) for(int x=20;x<=28;++x) {
+            bool plus=(x>=23 && x<=25) || (y>=33 && y<=35);
+            if(plus) output[y*size+x]=0xFFFFD470u;
+        }
+    }
     return bitmap;
 }
-static HBITMAP cached[10]{};
+static HBITMAP cached[11]{};
 static void draw(HDC dc,int cell,int kind,int mode) {
-    int index=kind==0 ? mode==1 ? 0 : mode==2 ? 1 : 2 : kind==1 ? 3+(mode!=0) : kind==2 ? 5+mode : 8+(mode!=0);
+    int index=kind==0 ? mode==1 ? 0 : mode==2 ? 1 : 2 : kind==1 ? 3+(mode!=0) : kind==2 ? 5+mode : 8+mode;
     if (!cached[index]) cached[index]=make(kind,mode);
     if (!cached[index]) return;
     auto source=CreateCompatibleDC(dc); auto old=SelectObject(source,cached[index]);
