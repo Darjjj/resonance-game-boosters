@@ -21,7 +21,7 @@ fullscreen displays are supported.
 
 ## Demo
 
-[Watch the F1–F5 showcase (65 seconds)](https://github.com/Darjjj/resonance-game-boosters/releases/download/v1.0.1/Resonance-Game-Boosters-demo.mp4). Includes both uninterrupted Auto-Battle fights.
+[Watch the F1–F5 showcase (65 seconds)](https://youtu.be/7a_HBWmgEYc).
 
 ## Download and install
 

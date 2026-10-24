@@ -4,7 +4,7 @@
 
 - Fixed booster icons staying hidden after battles: a retained battle-sequencer widget is no longer treated as a pause menu.
 - Actual pause menus, battle results and cutscenes still hide the icons.
-- Added the F1–F5 demo showing Auto-Battle activation and carryover into the next fight.
+- Added the F1–F5 demo.
 - Recommend setting the game's own battle speed to 1x when using Turbo Mode.
 
 
