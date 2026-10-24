@@ -21,7 +21,9 @@ fullscreen displays are supported.
 
 ## Demo
 
-[Watch the F1–F5 showcase (65 seconds)](https://youtu.be/7a_HBWmgEYc).
+https://github.com/user-attachments/assets/d125bf31-5de5-4280-b30b-dc0982707b76
+
+[Watch on YouTube](https://youtu.be/7a_HBWmgEYc).
 
 ## Download and install
 
