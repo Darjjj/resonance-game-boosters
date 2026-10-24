@@ -6,12 +6,14 @@ struct Function {
     const wchar_t* function_name;
     bool is_static;
     cutscene::Query query{};
+    bool native=true;
     bool call(std::uintptr_t target, void* parameters) const {
         Object fn{}, object{};
         std::uint32_t serial = 0, flags = 0;
         std::uintptr_t process = 0;
         if (!live(query.function, fn, serial) || fn.outer != query.owner || fn.name != query.function_name ||
-            !read(query.function + 0xB0, flags) || !(flags & 0x400) ||
+            !read(query.function + 0xB0, flags) || bool(flags & 0x400)!=native ||
+            (!native && !(flags & 0x800)) ||
             bool(flags & 0x2000) != is_static) return false;
         if (is_static) target = query.defaults;
         if (!live(target, object, serial, is_static) || bool(object.flags & 0x10) != is_static) return false;

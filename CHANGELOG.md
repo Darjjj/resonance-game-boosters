@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1 (unreleased)
+
+- Use the shipped Blueprint result screen's normal confirm handler; its native base page fields are unused.
+
 ## 1.1.0 (unreleased)
 
 - F4 cycles Off, Auto-Battle, Auto-Battle and Complete.

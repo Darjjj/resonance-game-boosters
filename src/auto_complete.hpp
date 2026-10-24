@@ -3,16 +3,19 @@
 #include "battle_discovery.hpp"
 
 namespace auto_complete {
-static std::array<game_api::Function,3> functions{{
-    {L"CPP_WBP_Btl_Result_PageList",L"ChangeNextPage",false},
-    {L"CPP_WBP_Btl_ResultLayout",L"ChangeState",false},
+static std::array<game_api::Function,2> functions{{
+    {L"WBP_Btl_ResultLayout_C",L"InputDecide",false,{},false},
     {L"GameplayStatics",L"IsGamePaused",true}
 }};
 static int cursor=0;
 static battle_discovery::Snapshot discovery;
 static bool native_ready() { return game_api::discover(functions,cursor); }
 static bool (*ready)()=native_ready;
-static bool native_invoke(int index,std::uintptr_t target,void* args) { return functions[index].call(target,args); }
+static bool native_invoke(int index,std::uintptr_t target,void* args) {
+    std::uint16_t bytes=0;
+    if(index==0 && (!read(functions[0].query.function+0xB6,bytes) || bytes!=1)) return false;
+    return functions[index].call(target,args);
+}
 static bool (*invoke)(int,std::uintptr_t,void*)=native_invoke;
 struct Context {
     std::uintptr_t layout=0,page=0,layout_id=0,page_id=0;
@@ -35,24 +38,23 @@ static bool native_context(std::uintptr_t world,Context& out) {
     int matches=0;
     for(std::size_t i=0;i<discovery.result_count;++i) {
         Context ctx; ctx.layout=discovery.results[i];
-        unsigned char active=0,can_switch=0,finished=0,state=255;
-        int count=0;
+        unsigned char active=0,finished=0;
+        std::uintptr_t model=0,page_model=0,id=0;
         if(!game_hud::identity(ctx.layout,ctx.layout_id) ||
             !read(ctx.layout+0x3E0,active) || active!=1 ||
-            !inherits(ctx.layout,L"CPP_WBP_Btl_ResultLayout") ||
-            !read(ctx.layout+0x5A8,state) || state<1 || state>6 ||
-            !read(ctx.layout+0x598,ctx.page) || !inherits(ctx.page,L"CPP_WBP_Btl_Result_PageList") ||
+            !inherits(ctx.layout,L"WBP_Btl_ResultLayout_C") ||
+            !read(ctx.layout+0x5C8,finished) || finished!=0 ||
+            !read(ctx.layout+0x598,ctx.page) || !inherits(ctx.page,L"WBP_BtlResultPage_Layout_C") ||
             !game_hud::identity(ctx.page,ctx.page_id) ||
-            !read(ctx.page+0x3E0,active) || active!=1 ||
-            !read(ctx.page+0x5B8,can_switch) || can_switch!=1 ||
-            !read(ctx.page+0x5B9,finished) || finished!=0 ||
-            !read(ctx.page+0x568,count) || count<1 || count>128 ||
-            !read(ctx.page+0x570,ctx.index) || ctx.index<0 || ctx.index>=count) continue;
-        ctx.state=state; out=ctx; ++matches;
+            !read(ctx.layout+0x5D8,model) || !game_hud::identity(model,id) ||
+            !inherits(model,L"CPP_VM_BattleResult") ||
+            !read(ctx.page+0x5C8,page_model) || page_model!=model ||
+            !read(ctx.page+0x5D0,ctx.index) || ctx.index<0 || ctx.index>128) continue;
+        out=ctx; ++matches;
     }
     if(matches!=1) return false;
     auto_attack::PausedArgs paused{world};
-    if(!invoke(2,0,&paused) || paused.result) return false;
+    if(!invoke(1,0,&paused) || paused.result) return false;
     // Recheck system/modal stacks immediately before advancing. The worker's
     // snapshot can precede a newly opened pause/options/dialog widget.
     bool root_active=false;
@@ -67,7 +69,7 @@ static bool native_context(std::uintptr_t world,Context& out) {
             if(!live(stack,object,serial) || !read(stack+0x1A0,child)) return false;
             if(!child) continue;
             if(!live(child,object,serial) || !read(child+0x3E0,active)) return false;
-            if(active && !inherits(child,L"CPP_WBP_Btl_ResultLayout") &&
+            if(active && !inherits(child,L"WBP_Btl_ResultLayout_C") &&
                 !inherits(child,L"WBP_BattleSequencerLay_C")) return false;
         }
     }
@@ -75,26 +77,24 @@ static bool native_context(std::uintptr_t world,Context& out) {
     return true;
 }
 static bool (*query_context)(std::uintptr_t,Context&)=native_context;
-static Context previous;
-static std::uintptr_t previous_world=0;
 static ULONGLONG last_advance=0;
-static void reset() { previous={}; previous_world=0; last_advance=0; }
+static void reset() { last_advance=0; }
 static void prepare() { (void)ready(); }
 static void step(std::uintptr_t world,int mode,ULONGLONG now) {
     if(mode!=2) { reset(); return; }
     if(!ready()) return;
-    Context ctx;
-    if(!query_context(world,ctx)) { previous={}; return; }
     if(now-last_advance<500) return;
-    if(previous_world==world && previous.layout_id==ctx.layout_id && previous.page_id==ctx.page_id &&
-        previous.index==ctx.index && previous.state==ctx.state) return;
-    // Normal page transition returns the next staging state. Let the layout
-    // process that state itself, including its usual reward and exit events.
-    unsigned char next=0;
-    if(!invoke(0,ctx.page,&next)) return;
-    previous=ctx; previous_world=world; last_advance=now;
-    if(next>=1 && next<=7 && invoke(1,ctx.layout,&next))
-        log("Auto-Battle and Complete: advanced one ready result page.");
+    Context ctx;
+    if(!query_context(world,ctx)) return;
+    // Use the visible Blueprint UI's ordinary input handler. It controls
+    // animation readiness, count-up skips, page transitions and reward events.
+    // The native base's PageList/State fields are unused by the shipped UI.
+    unsigned char event=1; // EWidgetInputEventType::Pressed.
+    if(!invoke(0,ctx.layout,&event)) return;
+    last_advance=now;
+    event=2; // Released: no held confirm can carry back into gameplay.
+    invoke(0,ctx.layout,&event);
+    log("Auto-Battle and Complete: confirmed the active result screen.");
 }
 }
 static void (*prepare_auto_complete)()=auto_complete::prepare;
