@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2 (unreleased)
+
+- Reduce Auto+ result confirms from 500ms to 100ms. Normal result handling and input guards remain in place.
+
 ## 1.1.1 (unreleased)
 
 - Use the shipped Blueprint result screen's normal confirm handler; its native base page fields are unused.

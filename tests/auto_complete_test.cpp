@@ -22,12 +22,14 @@ int main() {
     step(1,1,1000); assert(advances==0); // Ordinary Auto-Battle leaves results alone.
     step(1,2,1000); assert(advances==1 && changes==1);
     step(1,2,1050); assert(advances==1); // Never flood the input handler.
-    ++context.index; step(1,2,1100); assert(advances==1); // Pace page changes in real time.
-    step(1,2,1600); assert(advances==2);
-    available=false; step(1,2,2200); assert(advances==2); // Closed/menu/unsafe context.
-    available=true; ++context.page_id; step(1,2,2800); assert(advances==3); // Reused address, new object.
-    step(1,0,3400); assert(advances==3);
-    step(1,2,4000); assert(advances==4);
+    step(1,2,1099); assert(advances==1);
+    ++context.index; step(1,2,1100); assert(advances==2); // Confirm every 100 real ms.
+    step(1,2,1199); assert(advances==2);
+    step(1,2,1200); assert(advances==3 && changes==3); // Presses and releases remain paired.
+    available=false; step(1,2,2200); assert(advances==3); // Closed/menu/unsafe context.
+    available=true; ++context.page_id; step(1,2,2800); assert(advances==4); // Reused address, new object.
+    step(1,0,3400); assert(advances==4);
+    step(1,2,4000); assert(advances==5);
     image=reinterpret_cast<std::uintptr_t>(VirtualAlloc(nullptr,0xA000000,MEM_RESERVE,PAGE_READWRITE));
     assert(image);
     assert(VirtualAlloc(reinterpret_cast<void*>((image+GObjects)&~0xFFFULL),4096,MEM_COMMIT,PAGE_READWRITE));

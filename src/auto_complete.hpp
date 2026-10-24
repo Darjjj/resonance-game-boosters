@@ -83,7 +83,7 @@ static void prepare() { (void)ready(); }
 static void step(std::uintptr_t world,int mode,ULONGLONG now) {
     if(mode!=2) { reset(); return; }
     if(!ready()) return;
-    if(now-last_advance<500) return;
+    if(now-last_advance<100) return;
     Context ctx;
     if(!query_context(world,ctx)) return;
     // Use the visible Blueprint UI's ordinary input handler. It controls
