@@ -40,7 +40,8 @@ INI when upgrading; do not load both plugin names.
 
 Configure hotkeys and preferences in `resonance_boosters.ini`. Diagnostic log:
 `resonance_boosters.log`. The legacy `[Speed]` INI section is retained so older
-settings remain compatible.
+settings remain compatible. After a game update, `AllowUnknownExecutable=1`
+keeps the mod running once its built-in safety check passes; see the INI comments.
 
 To uninstall, close the game and remove this mod's ASI, INI and log. Keep the
 loader if other mods need it.
@@ -53,7 +54,9 @@ resources or HUD opacity may conflict. Hotkeys are configurable.
 
 Supported Steam build: **24250053**. Executable SHA256:
 `B8C588E46EBADBE37FECA7BDF2DA0AE63A8538099D14A53EC0C2241B086E5FFA`.
-Unsupported executables are rejected before integration.
+Unsupported executables are rejected before integration unless
+`AllowUnknownExecutable=1`, and even then only while the game code the mod
+relies on is unchanged.
 
 Core boosters were tested through the intro multiple times and dozens of
 battles. Pause-menu hiding and exclusive fullscreen icons were confirmed

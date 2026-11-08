@@ -58,14 +58,20 @@ int main() {
     };
     bool active = false;
     assert(reflected_cutscene(active) && !active);
+    // The two queries are polled on alternate ticks; a change shows within two.
+    auto detect = [&] { assert(reflected_cutscene(active)); assert(reflected_cutscene(active)); return active; };
     story_playing = true;
-    assert(reflected_cutscene(active) && active);
+    assert(detect());
     story_playing = false; movie_playing = true;
-    assert(reflected_cutscene(active) && active);
+    assert(detect());
     movie_playing = false;
-    assert(reflected_cutscene(active) && !active);
+    assert(!detect());
     put(chunk + 3 * 0x18, std::uintptr_t{0});
-    assert(!reflected_cutscene(active)); // No call through a stale UFunction.
+    // No call through a stale UFunction: the query validates it before each call
+    // and the stale one is noticed on its own turn.
+    bool first = reflected_cutscene(active), second = reflected_cutscene(active);
+    assert(!first || !second);
+    assert(!reflected_cutscene(active));
     VirtualFree(reinterpret_cast<void*>(image), 0, MEM_RELEASE);
     std::puts("Cutscene reflection tests passed (synthetic engine queries)");
 }

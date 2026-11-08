@@ -2,12 +2,14 @@
 #include <cassert>
 static std::uintptr_t addresses[26]{};
 static int hp[2]{10, 30}, mp[2]{2, 15};
-static int charge[2]{25, 40}, set_calls = 0, maximum = 300;
+static int charge[2]{25, 40}, set_calls = 0, maximum = 300, fact_calls = 0;
+static bool burst_setter_works = true;
 static void fake_process(void* self, void* function, void* parameters) {
     int index = static_cast<Object*>(function)->index;
     auto fn = index < 20 ? index - 7 : index - 14;
     int unit = reinterpret_cast<std::uintptr_t>(self) == addresses[14] ||
         reinterpret_cast<std::uintptr_t>(self) == addresses[16] ? 1 : 0;
+    if (fn >= 1 && fn <= 3) ++fact_calls;
     switch (fn) {
         case 0: *static_cast<int*>(parameters) = maximum; break;
         case 1: *static_cast<std::uintptr_t*>(parameters) = addresses[15 + unit]; break;
@@ -17,7 +19,8 @@ static void fake_process(void* self, void* function, void* parameters) {
         case 5: {
             int* values = static_cast<int*>(parameters);
             assert(values[0] == 17); // Never refill an enemy.
-            charge[0] = values[1]; ++set_calls; break;
+            if (burst_setter_works) charge[0] = values[1];
+            ++set_calls; break;
         }
         case 6: assert(false && "Supercharge must not recalculate maximum HP each poll"); break;
         case 7: assert(false && "Supercharge must not recalculate maximum MP each poll"); break;
@@ -109,6 +112,26 @@ int main() {
     limit_burst::refill(addresses[17]); assert(charge[0] == 0);
     put(addresses[12] + 0xB0, std::uint32_t{0x2400});
     limit_burst::refill(addresses[17]); assert(charge[0] == 300);
+    // Relation, id and parameter are facts for the whole battle: no repeated
+    // game calls for them once a unit is known.
+    int facts = fact_calls;
+    limit_burst::refill(addresses[17]); limit_burst::refill(addresses[17]);
+    assert(fact_calls == facts);
+    put(chunk + 15 * 0x18 + 0x10, std::uint32_t{5}); // Parameter object replaced: resolve it again.
+    limit_burst::refill(addresses[17]); assert(fact_calls > facts);
+    // A setter that changes nothing is not hammered every tick; it is retried
+    // after a second or as soon as the value moves.
+    static ULONGLONG fake_now = 100000;
+    limit_burst::clock = [] { return fake_now; };
+    burst_setter_works = false; charge[0] = 0;
+    int before = set_calls;
+    limit_burst::refill(addresses[17]); assert(set_calls == before + 1 && charge[0] == 0);
+    limit_burst::refill(addresses[17]); limit_burst::refill(addresses[17]); assert(set_calls == before + 1);
+    fake_now += 1000; limit_burst::refill(addresses[17]); assert(set_calls == before + 2);
+    charge[0] = 50; limit_burst::refill(addresses[17]); assert(set_calls == before + 3);
+    burst_setter_works = true; fake_now += 1000;
+    limit_burst::refill(addresses[17]); assert(set_calls == before + 4 && charge[0] == 300);
+    charge[0] = 10; limit_burst::refill(addresses[17]); assert(set_calls == before + 5 && charge[0] == 300); // Damage refilled at once.
     VirtualFree(reinterpret_cast<void*>(image), 0, MEM_RELEASE);
     std::puts("Limit Burst native API checks passed (synthetic reflection and battle units)");
 }

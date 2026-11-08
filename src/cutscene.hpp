@@ -82,11 +82,18 @@ static bool discover() {
 
 static bool reflected_cutscene(bool& active) {
     if (!cutscene::discover()) return false;
-    bool story = false, movie = false;
-    if (!cutscene::story.call(story) || !cutscene::movie.call(movie)) {
-        cutscene::story = {}; cutscene::movie = {}; cutscene::cursor = 0;
+    // Each query is one ProcessEvent call costing 1-2ms in this game. After the
+    // first full read the two are polled on alternate ticks: a change is seen
+    // within two ticks (100ms) at a steady cost of one call per tick.
+    static bool story = false, movie = false, primed = false, story_turn = true;
+    bool ok = true;
+    if (!primed || story_turn) { performance::Scope sample(performance::Story); ok = cutscene::story.call(story); }
+    if (ok && (!primed || !story_turn)) { performance::Scope sample(performance::Movie); ok = cutscene::movie.call(movie); }
+    if (!ok) {
+        cutscene::story = {}; cutscene::movie = {}; cutscene::cursor = 0; primed = false;
         return false;
     }
+    primed = true; story_turn = !story_turn;
     active = story || movie;
     return true;
 }

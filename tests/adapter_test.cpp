@@ -61,6 +61,25 @@ int main() {
     put(sp + 0x3F0, 20.0f);
     window = reinterpret_cast<HWND>(1);
     test_foreground = window;
+    // Patch protection bypass: the fixed-address code must match the supported
+    // build, and the registry/name pool must be populated, before anything runs.
+    assert(!code_matches());
+    for (const auto& signature : signatures) {
+        assert(VirtualAlloc(reinterpret_cast<void*>((image + signature.rva) & ~0xFFFULL), 4096, MEM_COMMIT, PAGE_READWRITE));
+        std::memcpy(reinterpret_cast<void*>(image + signature.rva), signature.bytes, sizeof(signature.bytes));
+    }
+    assert(code_matches());
+    assert(!registry_ready()); // Name pool not mapped yet.
+    assert(VirtualAlloc(reinterpret_cast<void*>((image + 0x9CA1280) & ~0xFFFULL), 4096, MEM_COMMIT, PAGE_READWRITE));
+    alignas(8) unsigned char names[64]{};
+    put(image + 0x9CA1280 + 0x10, reinterpret_cast<std::uintptr_t>(names));
+    put(reinterpret_cast<std::uintptr_t>(names), static_cast<std::uint16_t>(4 << 6));
+    std::memcpy(names + 2, "None", 4);
+    assert(registry_ready());
+    put(image + GObjects + 0x14, 0); assert(!registry_ready()); // Registry still empty at launch.
+    put(image + GObjects + 0x14, 4); assert(registry_ready());
+    reinterpret_cast<unsigned char*>(image + signatures[0].rva)[3] ^= 1; assert(!code_matches()); // Moved/changed code.
+    reinterpret_cast<unsigned char*>(image + signatures[0].rva)[3] ^= 1; assert(code_matches());
     Timing t;
     auto select = [&](int multiplier) { policy.select(multiplier); update(); };
     assert(timing(t));
@@ -186,6 +205,25 @@ int main() {
     assert(read(sp + 0x3E0, t.value) && t.value == 4);
     select(1);
     assert(read(sp + 0x3E0, t.value) && t.value == 1);
+
+    // The game's own battle speed preset (2x here) belongs to the player while
+    // Turbo is off. Only the Turbo key may reassert a speed in combat; the other
+    // booster keys must not touch the base factor.
+    policy = SpeedPolicy{};
+    put(sp + 0x480, 2.0f); combat.active = true; update();
+    assert(read(sp + 0x480, t.value) && t.value == 2);
+    update(VK_F3); update(VK_F3); update(VK_F3); update(VK_F5); update(VK_F5);
+    assert(encounter_mode == 0 && show_indicator && read(sp + 0x480, t.value) && t.value == 2);
+    select(4);
+    assert(read(sp + 0x480, t.value) && t.value == 4);
+    // A new battle starts from the current selection even when the manager keeps
+    // its identity and the game has rewritten its own preset at battle start.
+    combat.active = false; update();
+    put(sp + 0x480, 2.0f); combat.active = true; update();
+    assert(read(sp + 0x480, t.value) && t.value == 4);
+    select(1);
+    assert(read(sp + 0x480, t.value) && t.value == 1);
+    combat.active = false; update();
 
     // Exercise an actual Windows thread hook and message queue without focusing
     // a window or sending keyboard input to the user's desktop.

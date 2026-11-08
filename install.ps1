@@ -1,9 +1,10 @@
-param([string]$GameRoot = 'C:\Steam\steamapps\common\FINAL FANTASY RESONANCE')
+param([string]$GameRoot = 'C:\Steam\steamapps\common\FINAL FANTASY RESONANCE', [switch]$AllowUnknownExecutable)
 $ErrorActionPreference = 'Stop'
 $bin = Join-Path $GameRoot 'FFRS\Binaries\Win64'
 $exe = Join-Path $bin 'FFRS-Win64-Shipping.exe'
 if ((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -ne 'B8C588E46EBADBE37FECA7BDF2DA0AE63A8538099D14A53EC0C2241B086E5FFA') {
-    throw 'Unsupported executable; nothing installed.'
+    if (!$AllowUnknownExecutable) { throw 'Unsupported executable; nothing installed. Pass -AllowUnknownExecutable to install anyway.' }
+    Write-Warning 'Unsupported executable. The plugin runs on it only with AllowUnknownExecutable=1 in its INI, after its own layout check.'
 }
 if (Get-Process -Name FFRS-Win64-Shipping -ErrorAction SilentlyContinue) { throw 'Close the game before installing.' }
 if (!(Test-Path -LiteralPath (Join-Path $bin 'winmm.dll'))) { throw 'Existing ASI loader required; no loader will be installed.' }
@@ -69,7 +70,7 @@ if (!(Test-Path -LiteralPath $config)) {
         }
         Set-Content -LiteralPath $config -Value $configText
     }
-    $defaults = [ordered]@{ControlsVersion=5; CycleKey=112; BattleBoostToggleKey=113; EncounterToggleKey=114; AutoAttackToggleKey=115; HudToggleKey=116; EncounterMode=0; BattleBoostEnabled=0; AutoAttackEnabled=0; ShowIndicator=1; IndicatorX=20; IndicatorY=240; IndicatorLayoutVersion=2}
+    $defaults = [ordered]@{ControlsVersion=5; CycleKey=112; BattleBoostToggleKey=113; EncounterToggleKey=114; AutoAttackToggleKey=115; HudToggleKey=116; EncounterMode=0; BattleBoostEnabled=0; AutoAttackEnabled=0; ShowIndicator=1; IndicatorX=20; IndicatorY=240; IndicatorLayoutVersion=2; AllowUnknownExecutable=0}
     foreach ($entry in $defaults.GetEnumerator()) {
         if ($configText -notmatch ('(?mi)^\s*' + $entry.Key + '\s*=')) {
             Add-Content -LiteralPath $config -Value ($entry.Key + '=' + $entry.Value)

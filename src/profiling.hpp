@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
 namespace performance {
-enum Stage { Update, Combat, World, Queries, Supercharge, AutoBattle, Prepare, Discovery, Hud, SuperDiscovery, SuperUnits, SuperPoints, SuperSet, Count };
+enum Stage { Update, Combat, World, Queries, Supercharge, AutoBattle, Prepare, Discovery, Hud, SuperDiscovery, SuperUnits, SuperPoints, SuperSet, Story, Movie, BattleQuery, Count };
 struct Counter { std::atomic<unsigned long long> calls{0},ticks{0},peak{0}; };
 static std::array<Counter,Count> counters;
 static bool enabled=false;
@@ -34,7 +34,8 @@ static void report() {
     previous=now;
     constexpr const char* names[]{"field update","combat update","world timing","scene/battle queries",
         "Supercharge","Auto-Battle","Auto-Battle prepare","worker discovery","game HUD",
-        "Supercharge metadata","Supercharge units","Supercharge cached points","Supercharge refill setters"};
+        "Supercharge metadata","Supercharge units","Supercharge cached points","Supercharge refill setters",
+        "story cutscene query","movie cutscene query","battle lookup"};
     for(int i=0;i<Count;++i) {
         auto calls=counters[i].calls.exchange(0);
         auto ticks=counters[i].ticks.exchange(0);

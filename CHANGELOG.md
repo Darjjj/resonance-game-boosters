@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0
+
+- Fixed the other booster keys changing the battle speed while Turbo Mode was off.
+- Turbo Mode now takes effect reliably at the start of every battle.
+- Much lower CPU use: in the background, in battles with Supercharge on, and for cutscene detection.
+- New `AllowUnknownExecutable` option in the INI to keep using the mod after a game update. A built-in safety check keeps the mod idle if the game's code changed.
+- Clearer log messages, including what to do after a game update.
+
 ## 1.1.2
 
 - F4 now cycles Off, Auto-Battle, Auto-Battle and Complete.

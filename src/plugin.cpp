@@ -121,6 +121,7 @@ static bool apply_speed(std::uintptr_t address, float observed, const SpeedResul
 static void update(UINT key = 0) {
     performance::Scope total(performance::Update);
     static std::uintptr_t reported_world = 0;
+    static bool battle_was_active = false;
     bool focused = GetForegroundWindow() == window;
     if (focused && key) {
         int mode = encounter_mode.load();
@@ -148,6 +149,7 @@ static void update(UINT key = 0) {
     bool valid_timing=false;
     { performance::Scope sample(performance::World); valid_timing=timing(t); }
     if (!valid_timing) {
+        battle_was_active = false;
         auto_attack::reset();
         auto_complete::reset();
         publish_status(policy.multiplier(), 1, SpeedMode::Unavailable, encounter_mode.load(), limit_enabled.load(), auto_attack_enabled.load());
@@ -167,8 +169,15 @@ static void update(UINT key = 0) {
     BattleTiming battle;
     bool battle_known=false;
     { performance::Scope sample(performance::Queries);
-      known=query_cutscene(cinematic); battle_known=query_battle(t.world,battle); }
+      known=query_cutscene(cinematic);
+      performance::Scope lookup(performance::BattleQuery); battle_known=query_battle(t.world,battle); }
     if(battle_known && battle.active) total.stage=performance::Combat;
+    // Each battle starts from the current Turbo selection. The game rewrites its
+    // own speed preset into the base factor at battle start; that must not read
+    // as a foreign writer when the manager keeps or reuses its identity.
+    bool battle_active = battle_known && battle.active;
+    if (battle_active && !battle_was_active) battle_policy = BattleSpeedPolicy{};
+    battle_was_active = battle_active;
     static int reported_scene = -1;
     int scene = !known ? 0 : cinematic ? 1 : 2;
     if (reported_scene != scene) {
@@ -199,8 +208,10 @@ static void update(UINT key = 0) {
     float effective = result.write ? result.value : t.value;
     bool conflict = result.conflict;
     if (battle_known && battle.active) {
+        // Only the Turbo key reasserts a speed over the game's own battle preset;
+        // the other boosters' keys must leave the base factor alone.
         auto combat = battle_policy.update(battle.identity, battle.value,
-            accelerate ? policy.multiplier() : 1, focused && key != 0);
+            accelerate ? policy.multiplier() : 1, focused && key == keys.cycle);
         if (!apply_speed(battle.address, battle.value, combat, "battle base")) {
             battle_policy = BattleSpeedPolicy{}; return;
         }
@@ -227,6 +238,39 @@ static LRESULT CALLBACK on_message(int code, WPARAM removed, LPARAM data) {
     }
     // Never consume the message or suppress another mod's hook.
     return CallNextHookEx(nullptr, code, removed, data);
+}
+
+// First bytes of the three game functions this mod calls at fixed addresses, as
+// found in the supported build. With AllowUnknownExecutable=1 a patched game is
+// accepted only while these bytes, the object registry and the name pool still
+// match; a patch that moved code leaves the mod idle instead of crashing.
+struct Signature { std::uintptr_t rva; unsigned char bytes[16]; const char* what; };
+static constexpr Signature signatures[]{
+    {0x4F3BA80, {0x48,0x89,0x5c,0x24,0x08,0x57,0x48,0x83,0xec,0x20,0x48,0x8d,0xb9,0x28,0x09,0x00}, "battle subsystem lookup"},
+    {0x505A0E0, {0x48,0x83,0xec,0x28,0x48,0x8b,0x05,0xdd,0xb5,0xeb,0x04,0x48,0x85,0xc0,0x74,0x5e}, "map player getter"},
+    {0x13763A0, {0x48,0x89,0x5c,0x24,0x10,0x48,0x89,0x74,0x24,0x18,0x57,0x48,0x83,0xec,0x20,0x80}, "name formatter"},
+};
+static bool code_matches() {
+    for (const auto& signature : signatures) {
+        unsigned char actual[16]{};
+        if (!read(image + signature.rva, actual) || std::memcmp(actual, signature.bytes, sizeof(actual)) != 0) {
+            char line[160];
+            std::snprintf(line, sizeof(line), "Layout check failed: the %s code moved or changed.", signature.what);
+            log(line);
+            return false;
+        }
+    }
+    return true;
+}
+// The registry fills a few seconds after launch; "None" is always name 0.
+static bool registry_ready() {
+    std::int32_t count = 0, chunks_count = 0;
+    std::uintptr_t chunks = 0, chunk = 0, first = 0;
+    Object object{};
+    return read(image + GObjects + 0x14, count) && count > 0 && count <= 10000000 &&
+        read(image + GObjects + 0x1C, chunks_count) && chunks_count > 0 && chunks_count <= 256 &&
+        read(image + GObjects, chunks) && read(chunks, chunk) && read(chunk, first) &&
+        read(first, object) && object.index == 0 && screen_guard::read_name(0) == L"None";
 }
 
 static bool known_executable() {
@@ -282,10 +326,26 @@ static DWORD WINAPI start(void*) {
     wchar_t logpath[MAX_PATH];
     std::swprintf(logpath, MAX_PATH, L"%lsresonance_boosters.log", path);
     logfile = _wfopen(logpath, L"w");
-    log("Resonance Game Boosters 1.1.2 starting; F1 Turbo Mode; F2 Supercharge; F3 Encounter Rate; F4 Off/Auto-Battle/Auto-Battle and Complete; F5 HUD Hide/Show.");
+    log("Resonance Game Boosters 1.2.0 starting; F1 Turbo Mode; F2 Supercharge; F3 Encounter Rate; F4 Off/Auto-Battle/Auto-Battle and Complete; F5 HUD Hide/Show.");
     if (!GetPrivateProfileIntW(L"Speed", L"Enabled", 1, config_path)) { log("Disabled in config."); return 0; }
-    if (!known_executable()) { log("Unsupported executable SHA256. No hook or game writes installed."); return 0; }
     image = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
+    if (!known_executable()) {
+        if (!GetPrivateProfileIntW(L"Speed", L"AllowUnknownExecutable", 0, config_path)) {
+            log("Unsupported executable SHA256: this game build is not the one this mod was made for (Steam build 24250053). "
+                "The mod stays idle: no hook, no game memory reads or writes. Wait for a mod update, or set "
+                "AllowUnknownExecutable=1 to continue if the game code the mod relies on is unchanged.");
+            return 0;
+        }
+        log("WARNING: unsupported executable accepted because AllowUnknownExecutable=1. Checking the game code and data layout first.");
+        if (!code_matches()) { log("Layout check failed; the mod stays idle on this game build."); return 0; }
+        // Wait for Unreal to populate its object registry before judging the data layout.
+        bool ready = false;
+        for (int waited = 0; !ready && waited < 120000; waited += 250) { ready = registry_ready(); if (!ready) Sleep(250); }
+        if (!ready) { log("Layout check failed: object registry or name pool not where expected; the mod stays idle."); return 0; }
+        log("Layout check passed on an unknown executable. Field offsets are unverified: if anything misbehaves, set AllowUnknownExecutable=0.");
+    } else if (!code_matches()) {
+        log("Layout check mismatch on the supported build; continuing. Please report this.");
+    }
     performance::configure(GetPrivateProfileIntW(L"Speed",L"ProfileUpdates",0,config_path)!=0);
     keys.cycle = GetPrivateProfileIntW(L"Speed", L"CycleKey", VK_F1, config_path);
     keys.encounter = GetPrivateProfileIntW(L"Speed", L"EncounterToggleKey", VK_F3, config_path);
@@ -334,11 +394,13 @@ static DWORD WINAPI start(void*) {
         }
         int automatic = auto_attack_enabled.load(); bool visible = show_indicator.load();
         if (automatic != saved_auto) {
-            WritePrivateProfileStringW(L"Speed", L"AutoAttackEnabled", automatic==2 ? L"2" : automatic==1 ? L"1" : L"0", config_path);
+            if (!WritePrivateProfileStringW(L"Speed", L"AutoAttackEnabled", automatic==2 ? L"2" : automatic==1 ? L"1" : L"0", config_path))
+                log("Auto-Battle active for this session; saving preference failed.");
             saved_auto = automatic;
         }
         if (visible != saved_visible) {
-            WritePrivateProfileStringW(L"Speed", L"ShowIndicator", visible ? L"1" : L"0", config_path);
+            if (!WritePrivateProfileStringW(L"Speed", L"ShowIndicator", visible ? L"1" : L"0", config_path))
+                log("HUD visibility set for this session; saving preference failed.");
             saved_visible = visible;
         }
         if (window && IsWindow(window)) { Sleep(50); continue; }

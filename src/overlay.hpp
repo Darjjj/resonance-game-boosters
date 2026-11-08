@@ -73,22 +73,25 @@ static LRESULT CALLBACK indicator_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARA
 }
 static void update_indicator() {
     if (native_indicator_active || !hud_visible) { if (indicator) ShowWindow(indicator,SW_HIDE); return; }
+    HWND game = window.load();
+    if (!indicator_allowed() || !game || !IsWindow(game) || IsIconic(game) || GetForegroundWindow() != game) {
+        if (indicator) ShowWindow(indicator, SW_HIDE); return;
+    }
+    RECT client{};
+    if (!GetClientRect(game,&client) || client.right<indicator_width || client.bottom<indicator_height) {
+        if (indicator) ShowWindow(indicator,SW_HIDE); return;
+    }
+    // The window overlay is only a fallback for the native badges. Create it on
+    // first need: a window owned by the game's window from this thread ties the
+    // two threads' input queues together, so avoid it while the native HUD works.
     if (!indicator) {
         WNDCLASSW wc{}; wc.lpfnWndProc = indicator_proc; wc.hInstance = module;
         wc.lpszClassName = L"ResonanceBoostersIndicator";
         if (!RegisterClassW(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return;
         indicator = CreateWindowExW(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-            wc.lpszClassName, L"Resonance Game Boosters", WS_POPUP, 0, 0, indicator_width, indicator_height, window, nullptr, module, nullptr);
+            wc.lpszClassName, L"Resonance Game Boosters", WS_POPUP, 0, 0, indicator_width, indicator_height, game, nullptr, module, nullptr);
         if (!indicator) return;
         SetLayeredWindowAttributes(indicator, RGB(0, 0, 0), 255, LWA_COLORKEY);
-    }
-    HWND game = window.load();
-    if (!indicator_allowed() || !game || !IsWindow(game) || IsIconic(game) || GetForegroundWindow() != game) {
-        ShowWindow(indicator, SW_HIDE); return;
-    }
-    RECT client{};
-    if (!GetClientRect(game,&client) || client.right<indicator_width || client.bottom<indicator_height) {
-        ShowWindow(indicator,SW_HIDE); return;
     }
     POINT corner=indicator_position(client.right,client.bottom,indicator_x,indicator_y);
     ClientToScreen(game, &corner);

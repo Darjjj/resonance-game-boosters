@@ -109,6 +109,29 @@ int main() {
     std::printf("Screen check: %.3f ms/callback, %llu memory reads/callback\n",
         (end.QuadPart-start.QuadPart)*1000.0/frequency.QuadPart/100.0,measured_reads/100);
     assert(measured_reads==0); // The game-thread screen snapshot must never scan game objects.
+    // Steady-state worker sweep: instances sharing one deep class chain must not
+    // re-walk that chain for every object. Six-level chain, menu layout at level 4.
+    static unsigned char many[256][0x400]{},many_slots[256][0x18]{};
+    std::uintptr_t many_chunk=reinterpret_cast<std::uintptr_t>(many_slots),chain[6]{};
+    put(image+GObjects,reinterpret_cast<std::uintptr_t>(&many_chunk)); put(image+GObjects+0x14,256);
+    for(int i=0;i<256;++i) {
+        auto p=reinterpret_cast<std::uintptr_t>(many[i]); Object o{}; o.index=i; put(p,o); put(many_chunk+i*0x18,p);
+    }
+    for(int i=0;i<6;++i) chain[i]=reinterpret_cast<std::uintptr_t>(many[i]);
+    for(int i=0;i<5;++i) put(chain[i]+0x40,chain[i+1]);
+    put(chain[3]+0x18,std::uint64_t{1});
+    for(int i=6;i<256;++i) put(reinterpret_cast<std::uintptr_t>(many[i])+0x10,chain[0]);
+    screen_guard::cursor=0; screen_guard::known_count=0; screen_guard::appended=-1;
+    screen_guard::scanned=false; screen_guard::candidates.clear(); screen_guard::chain_cache.clear();
+    screen_guard::blocked(256);
+    assert(screen_guard::candidates.size()==250);
+    measured_reads=0;
+    QueryPerformanceCounter(&start);
+    screen_guard::blocked(256);
+    QueryPerformanceCounter(&end);
+    std::printf("Worker sweep: %.3f ms, %llu memory reads per object (shared class chain)\n",
+        (end.QuadPart-start.QuadPart)*1000.0/frequency.QuadPart,measured_reads/256);
+    assert(measured_reads/256<40);
 #endif
     VirtualFree(reinterpret_cast<void*>(image),0,MEM_RELEASE);
     std::puts("Screen visibility checks passed (menus, title, results, resume, stale objects and new widgets)");

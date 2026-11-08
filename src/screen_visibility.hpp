@@ -2,11 +2,17 @@
 #include "game_function.hpp"
 #include "battle_discovery.hpp"
 #include <vector>
+#include <unordered_map>
 
 // Read-only screen discovery runs only on the plugin worker. Never call game
 // functions or share the game-thread FName cache from this code.
 namespace screen_guard {
 enum class Kind { Other, Menu, Results, TitleTask, TaskManager, BattleInterface, BattleView, ModelCollection, BattleResources, BattleUnitManager, HudRoot, HudFunction, WidgetClass };
+// Class chains do not change while a class is loaded, so the walk is cached per
+// class pointer and dropped at every full sweep; a reused class slot can then
+// mislead for at most one sweep. In the cache, HudFunction and WidgetClass mean
+// "the chain reaches Function / Class"; classify() still checks the object.
+static std::unordered_map<std::uintptr_t,Kind> chain_cache;
 static int cursor=0, known_count=0, appended=-1;
 static bool scanned=false;
 static bool title_active=false;
@@ -30,42 +36,56 @@ static std::wstring read_name(std::uint64_t value) {
 }
 static std::wstring (*object_name)(std::uint64_t)=read_name;
 
+static Kind chain_kind(std::uintptr_t klass) {
+    auto found=chain_cache.find(klass);
+    if (found!=chain_cache.end()) return found->second;
+    auto root=klass;
+    Kind result=Kind::Other;
+    bool complete=true;
+    for (int depth=0;klass && depth<32;++depth) {
+        Object cls{};
+        std::uint32_t serial=0;
+        if (!live(klass,cls,serial,true)) { complete=false; break; }
+        auto name=object_name(cls.name);
+        if (name==L"WBP_OverAllLayout_C") { result=Kind::HudRoot; break; }
+        if (name==L"Class") { result=Kind::WidgetClass; break; }
+        if (name==L"Function") { result=Kind::HudFunction; break; }
+        if (name==L"CPP_WBP_MainMenuLayout" || name==L"CPP_WBP_TalkEvent_Pause" ||
+            name==L"CPP_WBP_TalkEvent_SystemMenu") { result=Kind::Menu; break; }
+        if (name==L"CPP_WBP_Btl_ResultLayout") { result=Kind::Results; break; }
+        if (name==L"CPP_TitleTaskMain" || name==L"CPP_TitleTaskStartup" ||
+            name==L"CPP_BootTaskNotify" || name==L"CPP_BootTaskStartup") { result=Kind::TitleTask; break; }
+        if (name==L"CPP_TaskManager") { result=Kind::TaskManager; break; }
+        if (name==L"CPP_UI_BattleSubsystem") { result=Kind::BattleInterface; break; }
+        if (name==L"CPP_VM_BtlCmd") { result=Kind::BattleView; break; }
+        if (name==L"MVVMViewModelCollectionObject") { result=Kind::ModelCollection; break; }
+        if (name==L"CPP_VM_BtlUnitParam") { result=Kind::BattleResources; break; }
+        if (name==L"CPP_UI_BtlUnitManager") { result=Kind::BattleUnitManager; break; }
+        if (!read(klass+0x40,klass)) { complete=false; break; }
+    }
+    // An unreadable chain is not remembered: the object may be mid-destruction.
+    if (complete && root) chain_cache[root]=result;
+    return result;
+}
 static Kind classify(std::uintptr_t pointer) {
     Object object{};
     std::uint32_t serial=0;
     if (!live(pointer,object,serial) || (object.flags&0x30)) return Kind::Other;
-    auto klass=object.klass;
-    for (int depth=0;klass && depth<32;++depth) {
-        Object cls{};
-        if (!live(klass,cls,serial,true)) break;
-        auto name=object_name(cls.name);
-        if (name==L"WBP_OverAllLayout_C") return Kind::HudRoot;
-        if(name==L"Class" && (object_name(object.name)==L"Image" || object_name(object.name)==L"CanvasPanel"))
-            return Kind::WidgetClass;
-        if (name==L"Function") {
-            Object owner{}; std::uint32_t flags=0;
-            auto fn=object_name(object.name);
-            if(read(object.outer,owner) && read(pointer+0xB0,flags) && (flags&0x400)) {
-                auto owner_name=object_name(owner.name);
-                for(const auto& api:battle_discovery::widget_apis)
-                    if(fn==api.name && owner_name==api.owner && bool(flags&0x2000)==api.is_static)
-                        return Kind::HudFunction;
-            }
+    auto kind=chain_kind(object.klass);
+    if (kind==Kind::WidgetClass)
+        return object_name(object.name)==L"Image" || object_name(object.name)==L"CanvasPanel" ? Kind::WidgetClass : Kind::Other;
+    if (kind==Kind::HudFunction) {
+        Object owner{}; std::uint32_t flags=0;
+        auto fn=object_name(object.name);
+        if(read(object.outer,owner) && read(pointer+0xB0,flags) && (flags&0x400)) {
+            auto owner_name=object_name(owner.name);
+            for(const auto& api:battle_discovery::widget_apis)
+                if(fn==api.name && owner_name==api.owner && bool(flags&0x2000)==api.is_static)
+                    return Kind::HudFunction;
         }
-        if (name==L"CPP_WBP_MainMenuLayout" || name==L"CPP_WBP_TalkEvent_Pause" ||
-            name==L"CPP_WBP_TalkEvent_SystemMenu") return Kind::Menu;
-        if (name==L"CPP_WBP_Btl_ResultLayout") return Kind::Results;
-        if (name==L"CPP_TitleTaskMain" || name==L"CPP_TitleTaskStartup" ||
-            name==L"CPP_BootTaskNotify" || name==L"CPP_BootTaskStartup") return Kind::TitleTask;
-        if (name==L"CPP_TaskManager") return Kind::TaskManager;
-        if (name==L"CPP_UI_BattleSubsystem") return Kind::BattleInterface;
-        if (name==L"CPP_VM_BtlCmd") return Kind::BattleView;
-        if (name==L"MVVMViewModelCollectionObject") return Kind::ModelCollection;
-        if (name==L"CPP_VM_BtlUnitParam") return Kind::BattleResources;
-        if (name==L"CPP_UI_BtlUnitManager") return Kind::BattleUnitManager;
-        if (!read(klass+0x40,klass)) break;
+        return Kind::Other;
     }
-    return Kind::Other;
+    return kind;
 }
 // The battle sequencer is retained in SystemFront2 after combat. Its active
 // flag is not evidence of a pause menu; cutscene detection handles its scenes.
@@ -136,13 +156,13 @@ static bool blocked(int budget=2048) {
     int count=0;
     std::uintptr_t chunks=0;
     if (!read(image+GObjects+0x14,count) || count<=0 || count>4000000 || !read(image+GObjects,chunks)) return true;
-    if (count<known_count) { cursor=0; appended=-1; scanned=false; candidates.clear(); }
+    if (count<known_count) { cursor=0; appended=-1; scanned=false; candidates.clear(); chain_cache.clear(); }
     if (known_count>0 && count>known_count && appended<0) appended=known_count;
     known_count=count;
     for (int n=0;n<budget;++n) {
         int index;
         if (appended>=0 && appended<count) { index=appended++; if(appended>=count) appended=-1; }
-        else { if(cursor>=count) { cursor=0; scanned=true; } index=cursor++; }
+        else { if(cursor>=count) { cursor=0; scanned=true; chain_cache.clear(); } index=cursor++; }
         std::uintptr_t chunk=0,pointer=0;
         if (!read(chunks+(index/65536)*8,chunk) || !read(chunk+(index%65536)*0x18,pointer) ||
             !pointer) continue;
